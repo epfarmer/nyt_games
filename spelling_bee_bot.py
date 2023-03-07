@@ -1,7 +1,6 @@
 import json
 import os
 from collections import defaultdict
-from functools import partial
 from os import getenv
 from pathlib import Path
 
