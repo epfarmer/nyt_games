@@ -6,8 +6,6 @@ These lil babies can help you solve the New York Times games Wordle and Spelling
 
 Python modules:
 
-- [requests](https://requests.readthedocs.io/en/latest/)
-- [python-dotenv](https://github.com/theskumar/python-dotenv)
 - [nltk](https://www.nltk.org/)
 - [sklearn](https://scikit-learn.org/stable/)
 - [wordfreq](https://github.com/rspeer/wordfreq/)
