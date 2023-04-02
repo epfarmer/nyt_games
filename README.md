@@ -32,8 +32,6 @@ From a command line, run `spelling_bee_bot.py`. Enter the key letter, followed b
 
 one would enter `l`, followed by `iorcfm`.
 
-Additionally, one may enter `w` or `f` to look up potential solutions in the [Webster](https://www.merriam-webster.com/) or [Free](https://dictionaryapi.dev/) dictionaries, respectively. If one chooses to use the Webster dictionary for word lookups, one will need to acquire an API key [here](https://dictionaryapi.com/), and define it in a `.env` file as `WEBSTER_API_KEY`.
-
 ## License
 
 [MIT](https://choosealicense.com/licenses/mit/)

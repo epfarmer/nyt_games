@@ -1,99 +1,73 @@
 import json
 import os
 from collections import defaultdict
-from os import getenv
 from pathlib import Path
 
-import requests as req
-from dotenv import load_dotenv
-from nltk.corpus import words
 from wordfreq import zipf_frequency
-
-load_dotenv()
-wordle_folder = os.path.dirname(__file__)
 
 
 class SpellingBeeBot:
     def __init__(self):
 
-        self.load_wordbank()
+        wordbank_folder = Path(os.path.dirname(__file__))
+        self.dictionary_file = wordbank_folder / "webster_dictionary.json"
+        self.wordbank_file = wordbank_folder / "spelling_bee_bank.json"
 
-    def load_wordbank(self):
-        wordbank_file = "spelling_bee_bank.json"
-        wordbank_path = Path(os.path.dirname(__file__)) / wordbank_file
+        if not self.wordbank_file.is_file():
+            self.generate_wordbank()
 
-        if not wordbank_path.is_file():
-            self.generate_wordbank(wordbank_path)
-
-        with open(wordbank_path) as f:
+        with open(self.wordbank_file) as f:
             self.wordbank: dict[str:float] = json.load(f)
 
-    def generate_wordbank(self, wordbank_path):
+        self.start()
+
+    def generate_wordbank(self):
 
         print(f"creating wordbank file")
 
+        with open(self.dictionary_file) as f:
+            wordbank: dict[str:str] = json.load(f)
+
         wordlist: dict[str:float] = {
-            w: freq
-            for w in sorted(set(words.words()))
-            if all((len(w) >= 4, w.islower(), freq := zipf_frequency(w, "en")))
+            w: d for w, d in wordbank.items() if len(w) >= 4 and zipf_frequency(w, "en")
         }
 
-        with open(wordbank_path, "w", encoding="utf-8") as f:
-            json.dump(
-                wordlist,
-                f,
-                indent=4,
-                sort_keys=True,
-            )
+        with open(self.wordbank_file, "w", encoding="utf-8") as f:
+            json.dump(wordlist, f, indent=4, sort_keys=True, ensure_ascii=False)
 
-    def get_definitions(self, lookup: str) -> None:
-        lookup_dict = {
-            "w": self.webster_lookup,
-            "f": self.freedict_lookup,
-        }
-        self.words = [w for w in self.words if lookup_dict[lookup](w)]
-
-    def webster_lookup(self, word: str) -> bool:
-        webster_url = "https://dictionaryapi.com/api/v3/references/collegiate/json"
-        res = req.get(f"{webster_url}/{word}?key={getenv('WEBSTER_API_KEY')}")
-        res_json = res.json()[0]
-        if type(res_json) != str:
-            definitions = " -- ".join(res_json["shortdef"])
-            print(f"{word}: {definitions}")
-            return True
-        return False
-
-    def freedict_lookup(self, word: str) -> bool:
-        res = req.get(f"https://api.dictionaryapi.dev/api/v2/entries/en/{word}")
-        if res.status_code == 200:
-            definition = res.json()[0]["meanings"][0]["definitions"][0]["definition"]
-            print(f"{word}: {definition}")
-            return True
-        return False
-
-    def get_words(self) -> None:
-
-        self.available_letters = set(self.key + self.letters)
+    def get_words(self, definitions: bool = True) -> None:
 
         self.words = {
-            word: freq
-            for word, freq in self.wordbank.items()
-            if self.key in word and all([c in self.available_letters for c in word])
+            w: d
+            for w, d in self.wordbank.items()
+            if self.key in w and self.check_word(w)
         }
 
-    def report_words(self) -> None:
+        if definitions:
+            for w, d in self.words.items():
+                first_def = d.split("\n")[0]
+                print(f"{w}: \n{first_def}\n")
+
         words_collection = defaultdict(list)
         for word in self.words:
             words_collection[len(word)].append(word)
         for length, words in sorted(words_collection.items()):
             print(f"{length} letter words: {', '.join(words)}")
 
-        pangrams = [
-            word
-            for word in self.words
-            if all([letter in word for letter in self.available_letters])
-        ]
+        pangrams = [w for w in self.words if self.check_pangram(w)]
         print(f"PANGRAMS: {', '.join(pangrams)}")
+
+    def check_word(self, word):
+        for c in word:
+            if c not in self.available_letters:
+                return False
+        return True
+
+    def check_pangram(self, word):
+        for c in self.available_letters:
+            if c not in word:
+                return False
+        return True
 
     def start(self):
         while True:
@@ -107,38 +81,19 @@ class SpellingBeeBot:
 
         while True:
             try:
-                self.letters = input("enter 6 surrounding letters: ").lower()
-                if len(self.letters) != 6 or not self.letters.isalpha():
+                other_letters = input("enter 6 surrounding letters: ").lower()
+                if len(other_letters) != 6 or not other_letters.isalpha():
                     raise ValueError
+                self.available_letters = set(self.key + other_letters)
                 break
             except ValueError:
                 print("must enter 6 surrounding letters")
 
-        while True:
-            try:
-                lookup = input(
-                    "(w)ebster or (f)ree dictionary (blank to skip): "
-                ).lower()
-                if not len(lookup):
-                    lookup = None
-                    break
-                if len(lookup) > 1 or not set("wf").issuperset(lookup):
-                    raise ValueError
-                break
-            except ValueError:
-                print(
-                    'enter "w" for webster or "f" for free dictionary (blank to skip)'
-                )
-
         self.get_words()
-        if lookup:
-            self.get_definitions(lookup)
-        self.report_words()
 
 
 def main():
-    spelling_bee_bot = SpellingBeeBot()
-    spelling_bee_bot.start()
+    SpellingBeeBot()
 
 
 if __name__ == "__main__":
