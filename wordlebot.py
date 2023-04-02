@@ -10,7 +10,11 @@ from wordfreq import zipf_frequency
 
 
 class WordleBot:
-    def __init__(self):
+    def __init__(self, auto: bool = False):
+
+        self.auto = auto
+
+        self.wordbank_file = Path(os.path.dirname(__file__)) / "wordle_bank.json"
 
         self.Word = namedtuple("Word", ["word", "word_freq", "char_freq"])
         self.Letter = namedtuple("Letter", ["pos", "char", "color"])
@@ -18,29 +22,28 @@ class WordleBot:
 
         self.load_wordbank()
         self.guesses = 6
-        self.make_suggestion()
+        self.start()
 
     def load_wordbank(self) -> None:
-        wordbank_file = "wordle_bank.json"
-        wordbank_path = Path(os.path.dirname(__file__)) / wordbank_file
 
-        if not wordbank_path.is_file():
-            self.generate_wordbank(wordbank_path)
+        if not self.wordbank_file.is_file():
+            self.generate_wordbank()
 
-        with open(wordbank_path) as f:
+        with open(self.wordbank_file) as f:
             self.wordbank = [
                 self.Word(w["word"], w["word_freq"], w["char_freq"])
                 for w in json.load(f)
             ]
             self.max_words = len(self.wordbank)
 
-    def generate_wordbank(self, wordbank_path) -> None:
+    def generate_wordbank(self) -> None:
 
         print(f"creating wordbank file")
 
         wordlist: list[str] = [
             w for w in sorted(set(words.words())) if len(w) == 5 and w.islower()
         ]
+
         word_freq = {
             word: freq for word in wordlist if (freq := zipf_frequency(word, "en"))
         }
@@ -68,7 +71,7 @@ class WordleBot:
             )
         }
 
-        with open(wordbank_path, "w", encoding="utf-8") as f:
+        with open(self.wordbank_file, "w", encoding="utf-8") as f:
             json.dump(
                 [
                     {
@@ -90,34 +93,33 @@ class WordleBot:
             for pos, (char, color) in enumerate(zip(word, tiles))
         ]
 
-        removed_words = []
-        for i, bank_word in enumerate([w.word for w in self.wordbank]):
-            char_counter = Counter(bank_word)
-            for g in [l for l in guess if l.color == "g"]:
-                if not bank_word[g.pos] == g.char:
-                    removed_words.append(i)
-                    break
-                # handles duplicate letter g + y/b case
-                char_counter[g.char] -= 1
-            else:
-                for y in [l for l in guess if l.color == "y"]:
-                    if not (bank_word[y.pos] != y.char and y.char in bank_word):
-                        removed_words.append(i)
-                        break
-                    # handles duplicate letter y + b case
-                    char_counter[y.char] -= 1
-                else:
-                    for b in [l for l in guess if l.color == "b"]:
-                        if char_counter.get(b.char):
-                            removed_words.append(i)
-                            break
-
         # filter words
-        self.wordbank = [
-            w for i, w in enumerate(self.wordbank) if i not in removed_words
-        ]
+        self.wordbank = [w for w in self.wordbank if self.word_check(w.word, guess)]
         self.guesses -= 1
-        self.make_suggestion()
+        print(
+            f"{self.max_words - (len_found := len(self.wordbank))} words eliminated, {len_found} remaining"
+        )
+
+    def word_check(self, word: str, guess: list[tuple]):
+        char_counter = Counter(word)
+
+        for g in [l for l in guess if l.color == "g"]:
+            if word[g.pos] != g.char:
+                return False
+            # handles duplicate letter g + y/b case
+            char_counter[g.char] -= 1
+
+        for y in [l for l in guess if l.color == "y"]:
+            if not (word[y.pos] != y.char and y.char in word):
+                return False
+            # handles duplicate letter y + b case
+            char_counter[y.char] -= 1
+
+        for b in [l for l in guess if l.color == "b"]:
+            if char_counter.get(b.char):
+                return False
+
+        return True
 
     def make_suggestion(self) -> None:
 
@@ -131,28 +133,34 @@ class WordleBot:
             )
             for w in self.wordbank
         ]
-        suggestions.sort(key=attrgetter("weight"), reverse=True)
-        top_5 = [f"{s.word} ({s.weight:.4f})" for s in suggestions[:5]]
 
-        len_found = len(self.wordbank)
-        print(f"{self.max_words - len_found} words eliminated, {len_found} remaining")
-        print(f"suggestions: {', '.join(top_5)}")
-        print(f"{self.guesses} guesses remaining")
+        if not len(suggestions):
+            raise IndexError
+
+        suggestions.sort(key=attrgetter("weight"), reverse=True)
+
+        if not self.auto:
+            print(f"suggestions: {', '.join([s.word for s in suggestions[:5]])}")
+
+        return suggestions[0].word
 
     def start(self) -> None:
-
+        word = self.make_suggestion()
         while self.guesses:
 
-            while True:
-                try:
-                    word = input("enter guess (blank to quit): ").lower()
-                    if not len(word):
-                        return
-                    if len(word) != 5 or not word.isalpha():
-                        raise ValueError
-                    break
-                except ValueError:
-                    print("guess must be 5 letters")
+            if not self.auto:
+                while True:
+                    try:
+                        word = input("enter guess (blank to quit): ").lower()
+                        if not len(word):
+                            return
+                        if len(word) != 5 or not word.isalpha():
+                            raise ValueError
+                        break
+                    except ValueError:
+                        print("guess must be 5 letters")
+            else:
+                print(f"autosuggest: {word}")
 
             while True:
                 try:
@@ -168,12 +176,16 @@ class WordleBot:
                     print('tile colors must be 5 of "g", "y", or "b"')
 
             self.word_guess(word, tiles)
+            try:
+                word = self.make_suggestion()
+            except IndexError:
+                print("No matching words found")
+                return
+            print(f"{self.guesses} guesses remaining\n")
 
 
 def main():
-
-    wordlebot = WordleBot()
-    wordlebot.start()
+    WordleBot(auto=False)
 
 
 if __name__ == "__main__":
