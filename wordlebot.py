@@ -1,6 +1,6 @@
 import json
 import os
-from collections import Counter, namedtuple
+from collections import Counter, defaultdict, namedtuple
 from operator import attrgetter
 from pathlib import Path
 
@@ -17,7 +17,7 @@ class WordleBot:
         self.wordbank_file = Path(os.path.dirname(__file__)) / "wordle_bank.json"
 
         self.Word = namedtuple("Word", ["word", "word_freq", "char_freq"])
-        self.Letter = namedtuple("Letter", ["pos", "char", "color"])
+        self.Tile = namedtuple("Tile", ["pos", "char"])
         self.Suggestion = namedtuple("Suggestion", ["word", "weight"])
 
         self.load_wordbank()
@@ -86,12 +86,11 @@ class WordleBot:
                 sort_keys=True,
             )
 
-    def word_guess(self, word: str, tiles: str) -> None:
+    def word_guess(self, word: str, tile_colors: str) -> None:
 
-        guess = [
-            self.Letter(pos, char, color)
-            for pos, (char, color) in enumerate(zip(word, tiles))
-        ]
+        guess = defaultdict(list)
+        for pos, (char, color) in enumerate(zip(word, tile_colors)):
+            guess[color].append(self.Tile(pos, char))
 
         # filter words
         self.wordbank = [w for w in self.wordbank if self.word_check(w.word, guess)]
@@ -100,28 +99,28 @@ class WordleBot:
             f"{self.max_words - (len_found := len(self.wordbank))} words eliminated, {len_found} remaining"
         )
 
-    def word_check(self, word: str, guess: list[tuple]):
+    def word_check(self, word: str, guess: dict[str, list[tuple]]) -> bool:
         char_counter = Counter(word)
 
-        for g in [l for l in guess if l.color == "g"]:
+        for g in guess["g"]:
             if word[g.pos] != g.char:
                 return False
             # handles duplicate letter g + y/b case
             char_counter[g.char] -= 1
 
-        for y in [l for l in guess if l.color == "y"]:
-            if not (word[y.pos] != y.char and char_counter[y.char]):
+        for y in guess["y"]:
+            if word[y.pos] == y.char or not char_counter.get(y.char):
                 return False
             # handles duplicate letter y + b case
             char_counter[y.char] -= 1
 
-        for b in [l for l in guess if l.color == "b"]:
+        for b in guess["b"]:
             if char_counter.get(b.char):
                 return False
 
         return True
 
-    def make_suggestion(self) -> None:
+    def make_suggestion(self) -> str:
 
         suggestions = [
             self.Suggestion(
@@ -164,18 +163,18 @@ class WordleBot:
 
             while True:
                 try:
-                    tiles = input(
+                    tile_colors = input(
                         "enter tile colors (g)reen, (y)ellow, (b)lack: "
                     ).lower()
-                    if not len(tiles):
+                    if not len(tile_colors):
                         return
-                    if len(tiles) != 5 or not set("gyb").issuperset(tiles):
+                    if len(tile_colors) != 5 or not set("gyb").issuperset(tile_colors):
                         raise ValueError
                     break
                 except ValueError:
                     print('tile colors must be 5 of "g", "y", or "b"')
 
-            self.word_guess(word, tiles)
+            self.word_guess(word, tile_colors)
             try:
                 word = self.make_suggestion()
             except IndexError:
@@ -185,7 +184,7 @@ class WordleBot:
 
 
 def main():
-    WordleBot(auto=True)
+    WordleBot(auto=False)
 
 
 if __name__ == "__main__":
