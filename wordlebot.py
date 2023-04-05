@@ -110,7 +110,7 @@ class WordleBot:
             char_counter[g.char] -= 1
 
         for y in [l for l in guess if l.color == "y"]:
-            if not (word[y.pos] != y.char and y.char in word):
+            if not (word[y.pos] != y.char and char_counter[y.char]):
                 return False
             # handles duplicate letter y + b case
             char_counter[y.char] -= 1
@@ -185,7 +185,7 @@ class WordleBot:
 
 
 def main():
-    WordleBot(auto=False)
+    WordleBot(auto=True)
 
 
 if __name__ == "__main__":
