@@ -11,7 +11,6 @@ from wordfreq import zipf_frequency
 
 class WordleBot:
     def __init__(self, auto: bool = False):
-
         self.auto = auto
 
         self.wordbank_file = Path(os.path.dirname(__file__)) / "wordle_bank.json"
@@ -25,7 +24,6 @@ class WordleBot:
         self.start()
 
     def load_wordbank(self) -> None:
-
         if not self.wordbank_file.is_file():
             self.generate_wordbank()
 
@@ -37,7 +35,6 @@ class WordleBot:
             self.max_words = len(self.wordbank)
 
     def generate_wordbank(self) -> None:
-
         print(f"creating wordbank file")
 
         wordlist: list[str] = [
@@ -87,7 +84,6 @@ class WordleBot:
             )
 
     def word_guess(self, word: str, tile_colors: str) -> None:
-
         guess = defaultdict(list)
         for pos, (char, color) in enumerate(zip(word, tile_colors)):
             guess[color].append(self.Tile(pos, char))
@@ -115,13 +111,12 @@ class WordleBot:
             char_counter[y.char] -= 1
 
         for b in guess["b"]:
-            if char_counter.get(b.char):
+            if word[b.pos] == b.char or char_counter.get(b.char):
                 return False
 
         return True
 
     def make_suggestion(self) -> str:
-
         suggestions = [
             self.Suggestion(
                 w.word,
@@ -146,7 +141,6 @@ class WordleBot:
     def start(self) -> None:
         word = self.make_suggestion()
         while self.guesses:
-
             if not self.auto:
                 while True:
                     try:
